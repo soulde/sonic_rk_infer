@@ -1,0 +1,7 @@
+*.log
+sonic_rk3576_controller
+sonic_rk3576_hil_server
+sonic_rk3576_infer
+deps/
+*.rknn
+inference/build/
