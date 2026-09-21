@@ -157,6 +157,47 @@ class RknnModel {
   rknn_tensor_attr input_attr_{}, output_attr_{};
 };
 
+void benchmark_model(const std::string& name, const std::string& path,
+                     size_t input_size, size_t output_size, int iterations) {
+  RknnModel model(name, path, input_size, output_size);
+  model.open();
+  std::vector<float> input(input_size, 0.f);
+  for (int i = 0; i < 100; ++i) model.run(input);
+  const auto begin = Clock::now();
+  for (int i = 0; i < iterations; ++i) model.run(input);
+  const double seconds = std::chrono::duration<double>(Clock::now() - begin).count();
+  std::cout << "benchmark " << name << " iterations=" << iterations
+            << " elapsed_s=" << seconds
+            << " inference_hz=" << (static_cast<double>(iterations) / seconds)
+            << " mean_ms=" << (seconds * 1000.0 / iterations) << "\n";
+}
+
+void benchmark_policy(const std::string& encoder_path, const std::string& decoder_path,
+                      int iterations) {
+  RknnModel encoder("encoder", encoder_path, kEncoderInput, kToken);
+  RknnModel decoder("decoder", decoder_path, kDecoderInput, kAction);
+  encoder.open();
+  decoder.open();
+  std::vector<float> encoder_input(kEncoderInput, 0.f);
+  std::vector<float> decoder_input(kDecoderInput, 0.f);
+  for (int i = 0; i < 100; ++i) {
+    auto token = encoder.run(encoder_input);
+    std::copy(token.begin(), token.end(), decoder_input.begin());
+    decoder.run(decoder_input);
+  }
+  const auto begin = Clock::now();
+  for (int i = 0; i < iterations; ++i) {
+    auto token = encoder.run(encoder_input);
+    std::copy(token.begin(), token.end(), decoder_input.begin());
+    decoder.run(decoder_input);
+  }
+  const double seconds = std::chrono::duration<double>(Clock::now() - begin).count();
+  std::cout << "benchmark policy(encoder+decoder) iterations=" << iterations
+            << " elapsed_s=" << seconds
+            << " inference_hz=" << (static_cast<double>(iterations) / seconds)
+            << " mean_ms=" << (seconds * 1000.0 / iterations) << "\n";
+}
+
 struct Snapshot {
   LowState state;
   Clock::time_point received;
@@ -258,4 +299,4 @@ class Controller {
   RknnModel encoder_,decoder_;Motion motion_;int domain_;std::string iface_;bool auto_start_,auto_play_;StateBuffer buffer_;std::unique_ptr<ChannelPublisher<LowCmd>> publisher_;std::unique_ptr<ChannelSubscriber<LowState>> subscriber_;std::shared_ptr<Command> command_;std::atomic<bool> stop_{false};uint8_t mode_machine_=0;
 };
 
-int main(int argc,char**argv){try{std::string enc="sonic_encoder_int8.rknn",dec="sonic_decoder_int8.rknn",motion="reference/dance_in_da_party_001__A464_M",iface="eth0";int domain=0;bool start=false,play=false;for(int i=1;i<argc;++i){std::string a=argv[i];auto next=[&]{if(i+1>=argc)throw std::runtime_error("missing argument");return std::string(argv[++i]);};if(a=="--encoder")enc=next();else if(a=="--decoder")dec=next();else if(a=="--motion")motion=next();else if(a=="--domain")domain=std::stoi(next());else if(a=="--interface")iface=next();else if(a=="--auto-start")start=true;else if(a=="--auto-play")play=true;else if(a=="--help"){std::cout<<"usage: sonic_rk3576_controller [--encoder p] [--decoder p] [--motion dir] [--domain n] [--interface nic] [--auto-start] [--auto-play]\n";return 0;}else throw std::runtime_error("unknown arg "+a);}Controller(enc,dec,motion,domain,iface,start,play).run();return 0;}catch(const std::exception&e){std::cerr<<"ERROR: "<<e.what()<<'\n';return 1;}}
+int main(int argc,char**argv){try{std::string enc="sonic_encoder_int8.rknn",dec="sonic_decoder_int8.rknn",motion="reference/dance_in_da_party_001__A464_M",iface="eth0";int domain=0,benchmark_iterations=5000;bool start=false,play=false,benchmark=false;for(int i=1;i<argc;++i){std::string a=argv[i];auto next=[&]{if(i+1>=argc)throw std::runtime_error("missing argument");return std::string(argv[++i]);};if(a=="--encoder")enc=next();else if(a=="--decoder")dec=next();else if(a=="--motion")motion=next();else if(a=="--domain")domain=std::stoi(next());else if(a=="--interface")iface=next();else if(a=="--auto-start")start=true;else if(a=="--auto-play")play=true;else if(a=="--benchmark")benchmark=true;else if(a=="--benchmark-iterations")benchmark_iterations=std::stoi(next());else if(a=="--help"){std::cout<<"usage: sonic_rk3576_controller [--encoder p] [--decoder p] [--motion dir] [--domain n] [--interface nic] [--auto-start] [--auto-play] [--benchmark] [--benchmark-iterations n]\n";return 0;}else throw std::runtime_error("unknown arg "+a);}if(benchmark){benchmark_policy(enc,dec,benchmark_iterations);return 0;}Controller(enc,dec,motion,domain,iface,start,play).run();return 0;}catch(const std::exception&e){std::cerr<<"ERROR: "<<e.what()<<'\n';return 1;}}

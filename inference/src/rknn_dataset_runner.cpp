@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstring>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -53,12 +54,15 @@ int main(int argc, char** argv) {
     if (!output) throw std::runtime_error("cannot open output");
     Model model(argv[1], input_width, output_width);
     std::vector<float> in(input_width), out(output_width);
+    const auto begin = std::chrono::steady_clock::now();
     for (size_t i = 0; i < count; ++i) {
       input.read(reinterpret_cast<char*>(in.data()), static_cast<std::streamsize>(in.size() * sizeof(float)));
       if (input.gcount() != static_cast<std::streamsize>(in.size() * sizeof(float))) throw std::runtime_error("short input");
       model.run(in.data(), out.data());
       output.write(reinterpret_cast<const char*>(out.data()), static_cast<std::streamsize>(out.size() * sizeof(float)));
     }
-    std::cerr << "processed " << count << " samples\n";
+    const double seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
+    std::cerr << "processed " << count << " samples in " << seconds
+              << " s, inference throughput " << (static_cast<double>(count) / seconds) << " Hz\n";
   } catch (const std::exception& e) { std::cerr << "ERROR: " << e.what() << "\n"; return 1; }
 }
