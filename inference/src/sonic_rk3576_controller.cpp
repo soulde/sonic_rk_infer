@@ -275,6 +275,7 @@ void build_observations(const Motion& motion, int frame, bool playing, const std
 }
 
 Command make_command(const std::array<float,kDof>& action) { Command c; for(int hw=0;hw<kDof;++hw){const int isaac=kIsaacToMujoco[hw];c.q[hw]=kDefaultAngles[hw]+kActionScale[hw]*action[isaac];c.kp[hw]=kKp[hw];c.kd[hw]=kKd[hw];} return c; }
+Command default_command() { std::array<float, kDof> action{}; return make_command(action); }
 Command damping() { Command c; for(int i=0;i<kDof;++i)c.kd[i]=8.f; return c; }
 
 class Controller {
@@ -286,7 +287,10 @@ class Controller {
     ChannelFactory::Instance()->Init(domain_,iface_);
     publisher_=std::make_unique<ChannelPublisher<LowCmd>>("rt/lowcmd");publisher_->InitChannel();
     subscriber_=std::make_unique<ChannelSubscriber<LowState>>("rt/lowstate");subscriber_->InitChannel([this](const void* p){buffer_.update(*static_cast<const LowState*>(p));},1);
-    std::atomic_store(&command_,std::make_shared<Command>(damping()));
+    // Match the official controller: publish the default standing target
+    // immediately while waiting for the first LowState, rather than sending
+    // a zero-position damping command that lets MuJoCo fall before INIT.
+    std::atomic_store(&command_,std::make_shared<Command>(default_command()));
     std::thread writer([this]{write_loop();});
     init_loop();
     control_loop();
