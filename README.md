@@ -31,7 +31,9 @@ DDS_DOMAIN=24 DDS_INTERFACE=eth0 ./run_controller.sh --auto-start --auto-play
 
 The host simulator must use the same DDS domain and the host NIC connected to
 the board.  The RKNN model inputs are float32 tensors with dimensions 1247
-and 994; the current models are `sonic_encoder_int8.rknn` and
-`sonic_decoder_int8.rknn`.
+and 994; the default deployment models are the validated Float16 models
+`sonic_encoder_float.rknn` and `sonic_decoder_float.rknn`.  The INT8 candidates
+remain available as `sonic_encoder_int8.rknn` and `sonic_decoder_int8.rknn` and
+can be selected with `ENCODER_MODEL` and `DECODER_MODEL`.
 
 This controller intentionally has no MuJoCo or host-project dependency.
